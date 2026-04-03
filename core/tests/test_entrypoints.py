@@ -1,6 +1,8 @@
 import importlib
 import importlib.util
 import os
+import sys
+import types
 
 
 def test_backend_entrypoints_import(monkeypatch):
@@ -15,6 +17,7 @@ def test_backend_entrypoints_import(monkeypatch):
     monkeypatch.setenv("EMAIL_HOST_PASSWORD", "pass")
     monkeypatch.setenv("EMAIL_HOST", "smtp.example.com")
     monkeypatch.setenv("DEFAULT_FROM_EMAIL", "test@example.com")
+    monkeypatch.setenv("SENDGRID_API_KEY", "sg.test")
     monkeypatch.setenv("DEBUG", "True")
     monkeypatch.setenv("DB_NAME", "test")
     monkeypatch.setenv("DB_USER", "test")
@@ -44,4 +47,7 @@ def test_backend_entrypoints_import(monkeypatch):
     legacy_settings_path = os.path.abspath(legacy_settings_path)
     legacy_spec = importlib.util.spec_from_file_location("backend_settings_legacy", legacy_settings_path)
     legacy_module = importlib.util.module_from_spec(legacy_spec)
+    dotenv_module = types.ModuleType("dotenv")
+    dotenv_module.load_dotenv = lambda *args, **kwargs: None
+    sys.modules.setdefault("dotenv", dotenv_module)
     legacy_spec.loader.exec_module(legacy_module)

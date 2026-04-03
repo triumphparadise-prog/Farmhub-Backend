@@ -153,6 +153,13 @@ CORS_ALLOWED_ORIGINS = env.list(
 
 CORS_ALLOW_CREDENTIALS = True  # allows sending cookies or auth headers
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+FRONTEND_URL = env("FRONTEND_URL", default="").rstrip("/")
+
+if FRONTEND_URL:
+    if FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+    if FRONTEND_URL not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
 # base.py
 
 from datetime import timedelta
@@ -162,10 +169,11 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=5),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
-    "AUTH_COOKIE_SECURE": False,     # overridden in prod.py
-    "AUTH_COOKIE_HTTP_ONLY": True,
-    "AUTH_COOKIE_PATH": "/",
-    "AUTH_COOKIE_SAMESITE": "Lax",
+    "AUTH_COOKIE_SECURE": env.bool("AUTH_COOKIE_SECURE", default=False),
+    "AUTH_COOKIE_HTTP_ONLY": env.bool("AUTH_COOKIE_HTTP_ONLY", default=True),
+    "AUTH_COOKIE_PATH": env("AUTH_COOKIE_PATH", default="/"),
+    "AUTH_COOKIE_SAMESITE": env("AUTH_COOKIE_SAMESITE", default="Lax"),
+    "AUTH_COOKIE_DOMAIN": env("AUTH_COOKIE_DOMAIN", default=None),
     "ACCESS_COOKIE_NAME": "access_token",
     "REFRESH_COOKIE_NAME": "refresh_token",
 }

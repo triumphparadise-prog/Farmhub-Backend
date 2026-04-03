@@ -9,13 +9,28 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-farmhub_user} -d ${DB_NAME:-farmhub_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no"]
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
 
   web:
     build: .
@@ -26,12 +41,25 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
       DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-backend.settings.prod}
       DEBUG: ${DEBUG:-False}
-      ENV: ${ENV:-development}
+      ENV: ${ENV:-production}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+      - edge
 
 volumes:
   postgres_data:
+
+networks:
+  backend:
+    internal: true
+  edge:

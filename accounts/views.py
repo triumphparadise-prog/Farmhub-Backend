@@ -66,9 +66,11 @@ class LoginThrottle(SimpleRateThrottle):
 
     def get_cache_key(self, request, view):
         email = request.data.get("email")
-        if not email:
+        username = request.data.get("username")
+        credential = email or username or self.get_ident(request)
+        if not credential:
             return None
-        ident = email.lower().strip()
+        ident = f"{self.get_ident(request)}:{credential.lower().strip()}"
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
@@ -89,12 +91,16 @@ OTP_MAX_ATTEMPTS = 5
 
 def _get_cookie_settings():
     cfg = settings.SIMPLE_JWT
-    return {
+    cookie_settings = {
         "secure": cfg.get("AUTH_COOKIE_SECURE", True),
         "httponly": cfg.get("AUTH_COOKIE_HTTP_ONLY", True),
         "samesite": cfg.get("AUTH_COOKIE_SAMESITE", "Lax"),
         "path": cfg.get("AUTH_COOKIE_PATH", "/"),
     }
+    cookie_domain = cfg.get("AUTH_COOKIE_DOMAIN")
+    if cookie_domain:
+        cookie_settings["domain"] = cookie_domain
+    return cookie_settings
 
 
 def _set_auth_cookies(response, access_token, refresh_token=None):
@@ -125,8 +131,12 @@ def _clear_auth_cookies(response):
     cfg = settings.SIMPLE_JWT
     access_name = cfg.get("ACCESS_COOKIE_NAME", "access_token")
     refresh_name = cfg.get("REFRESH_COOKIE_NAME", "refresh_token")
-    response.delete_cookie(access_name, path=cfg.get("AUTH_COOKIE_PATH", "/"))
-    response.delete_cookie(refresh_name, path=cfg.get("AUTH_COOKIE_PATH", "/"))
+    delete_options = {"path": cfg.get("AUTH_COOKIE_PATH", "/")}
+    cookie_domain = cfg.get("AUTH_COOKIE_DOMAIN")
+    if cookie_domain:
+        delete_options["domain"] = cookie_domain
+    response.delete_cookie(access_name, **delete_options)
+    response.delete_cookie(refresh_name, **delete_options)
 
 
 class VerifiedTokenObtainPairSerializer(TokenObtainPairSerializer):

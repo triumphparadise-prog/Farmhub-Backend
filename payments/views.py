@@ -21,6 +21,8 @@ from .serializers import (
     PaymentVerifyResponseSerializer
 )
 
+PAYSTACK_TIMEOUT_SECONDS = 15
+
 
 # ============================================================
 # 1️⃣ INITIALIZE PAYMENT
@@ -66,7 +68,15 @@ def initialize_payment(request):
         "Content-Type": "application/json"
     }
 
-    response = requests.post(initialize_url, json=payload, headers=headers)
+    try:
+        response = requests.post(
+            initialize_url,
+            json=payload,
+            headers=headers,
+            timeout=PAYSTACK_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException:
+        return Response({"detail": "Payment provider unavailable"}, status=502)
 
     if response.status_code not in [200, 201]:
         return Response(
@@ -107,7 +117,14 @@ def verify_payment(request):
         "Content-Type": "application/json",
     }
 
-    response = requests.get(verify_url, headers=headers)
+    try:
+        response = requests.get(
+            verify_url,
+            headers=headers,
+            timeout=PAYSTACK_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException:
+        return Response({"detail": "Payment provider unavailable"}, status=502)
 
     if response.status_code != 200:
         return Response({"detail": "Verification failed"}, status=502)
