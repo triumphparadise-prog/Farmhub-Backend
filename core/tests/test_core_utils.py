@@ -1,4 +1,5 @@
 import json
+import logging
 import pytest
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -48,3 +49,21 @@ def test_logging_utils_ip_and_event(monkeypatch):
 
     assert get_client_ip(DummyRequest()) == "127.0.0.1"
     log_event("auth_events", DummyRequest(), "test_action", "success")
+
+
+def test_log_event_swallows_logger_failures(monkeypatch):
+    class DummyRequest:
+        META = {"REMOTE_ADDR": "127.0.0.1"}
+        user = None
+
+    class BoomLogger:
+        def info(self, *args, **kwargs):
+            raise RuntimeError("logger failed")
+
+    original_get_logger = logging.getLogger
+    monkeypatch.setattr(
+        "core.logging_utils.logging.getLogger",
+        lambda name=None: BoomLogger() if name == "auth_events" else original_get_logger(name),
+    )
+
+    log_event("auth_events", DummyRequest(), "test_action", "failure")
