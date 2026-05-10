@@ -37,11 +37,11 @@ services:
       - key: ALLOWED_HOSTS
         sync: false
       - key: FRONTEND_URL
-        sync: false
+        value: https://farmhub-frontend-beta.vercel.app
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
+        value: https://farmhub-frontend-beta.vercel.app
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: https://farmhub-frontend-beta.vercel.app
       - key: DEFAULT_FROM_EMAIL
         sync: false
       - key: SENDGRID_API_KEY

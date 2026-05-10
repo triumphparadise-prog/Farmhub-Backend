@@ -36,11 +36,20 @@ X_FRAME_OPTIONS = "DENY"
 # CORS
 # =========================
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+FRONTEND_URL = env("FRONTEND_URL", default="").rstrip("/")
+
 CORS_ALLOW_CREDENTIALS = True
 
 # =========================
 # JWT COOKIE SECURITY
 # =========================
+if FRONTEND_URL:
+    if FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+    if FRONTEND_URL not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
+
 SIMPLE_JWT["AUTH_COOKIE_SECURE"] = env.bool(
     "AUTH_COOKIE_SECURE", default=True
 )
