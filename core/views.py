@@ -47,19 +47,4 @@ class HealthCheckAPIView(APIView):
         except Exception:
             checks["cache"] = "degraded"
 
-        try:
-            menu_qs = MenuItem.objects.filter(is_available=True).select_related("category")
-            checks["menu_count"] = menu_qs.count()
-        except Exception as exc:
-            checks["menu"] = "error"
-            checks["menu_error"] = f"{type(exc).__name__}: {str(exc)}"[:300]
-
-        try:
-            menu_sample = MenuItem.objects.filter(is_available=True).select_related("category")[:3]
-            MenuItemSerializer(menu_sample, many=True).data
-            checks["menu_serialization"] = "ok"
-        except Exception as exc:
-            checks["menu_serialization"] = "error"
-            checks["menu_serialization_error"] = f"{type(exc).__name__}: {str(exc)}"[:300]
-
         return success_response("ok", data=checks)
