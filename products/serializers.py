@@ -8,7 +8,21 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = "__all__"
 
+
+class SafeImageField(serializers.ImageField):
+    def to_representation(self, value):
+        if not value:
+            return None
+
+        try:
+            return super().to_representation(value)
+        except Exception:
+            fallback = str(value).strip()
+            return fallback or None
+
+
 class MenuItemSerializer(serializers.ModelSerializer):
+    image = SafeImageField(required=False, allow_null=True)
 
     class Meta:
         model = MenuItem

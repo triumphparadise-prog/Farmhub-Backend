@@ -233,9 +233,23 @@ class RegisterView(generics.CreateAPIView):
             admin_logger.warning(f"Email send failed for user {user.id}: {str(e)}")
             log_event("auth_events", request, "otp_send", "failure", user=user)
 
+        try:
+            user_data = UserSerializer(user).data
+        except Exception as e:
+            admin_logger.warning(f"User serialization failed after registration for user {user.id}: {str(e)}")
+            user_data = {
+                "id": user.id,
+                "email": user.email,
+                "full_name": user.full_name,
+                "username": user.username,
+                "role": user.role,
+                "is_verified": user.is_verified,
+                "profile": None,
+            }
+
         return Response({
             "message": "Registration successful. Please verify your email.",
-            "user": UserSerializer(user).data,
+            "user": user_data,
         }, status=status.HTTP_201_CREATED)
 
 
