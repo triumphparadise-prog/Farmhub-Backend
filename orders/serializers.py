@@ -1,5 +1,7 @@
 from decimal import Decimal
 from django.db import transaction
+from django.core.mail import send_mail
+from django.conf import settings
 from rest_framework import serializers
 from .models import Order, OrderItem
 from products.models import MenuItem
@@ -23,10 +25,14 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'id', 'customer', 'status', 'total_price', 'address', 'phone',
+            'id', 'customer', 'status', 'total_price', 'delivery_fee',
+            'estimated_delivery_date', 'address', 'phone',
             'created_at', 'items', 'paid', 'paystack_reference'
         ]
-        read_only_fields = ['id', 'total_price', 'created_at', 'paid', 'paystack_reference']
+        read_only_fields = [
+            'id', 'total_price', 'delivery_fee', 'estimated_delivery_date',
+            'created_at', 'paid', 'paystack_reference'
+        ]
 
     # FIELD VALIDATION
     def validate_address(self, value):
@@ -49,6 +55,49 @@ class OrderSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Order must contain at least one item.")
         return value
+
+    def _delivery_fee_for_address(self, address):
+        text = (address or "").lower()
+        if any(area in text for area in ["lagos island", "lekki", "ajah", "vi"]):
+            return Decimal("2500.00")
+        if any(area in text for area in ["ibadan", "abeokuta", "ogun", "oyo"]):
+            return Decimal("3500.00")
+        return Decimal("1500.00")
+
+    def _send_order_receipt(self, order):
+        user = order.user
+        if not user or not getattr(user, "email", None):
+            return
+
+        lines = [
+            f"Order #{order.id} received.",
+            "",
+            "Items:",
+        ]
+        for item in order.items.select_related("menu_item"):
+            name = item.menu_item.name if item.menu_item else "Deleted item"
+            lines.append(f"- {item.quantity} x {name}: NGN {item.price * item.quantity}")
+        lines.extend(
+            [
+                "",
+                f"Delivery fee: NGN {order.delivery_fee}",
+                f"Total: NGN {order.total_price}",
+                f"Estimated delivery: {order.estimated_delivery_date}",
+                "",
+                "Thank you for shopping with FarmHub.",
+            ]
+        )
+
+        try:
+            send_mail(
+                subject=f"FarmHub Order #{order.id} Receipt",
+                message="\n".join(lines),
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception:
+            return
 
     # CREATE ORDER
     @transaction.atomic
@@ -74,12 +123,16 @@ class OrderSerializer(serializers.ModelSerializer):
             else:
                 raise serializers.ValidationError("Invalid menu_item entry.")
 
-            if not menu_item_obj.is_available:
+            if not menu_item_obj.is_available or menu_item_obj.stock_quantity <= 0:
                 raise serializers.ValidationError(f"Item '{menu_item_obj.name}' is not available.")
 
             quantity = int(item.get('quantity', 1))
             if quantity <= 0:
                 raise serializers.ValidationError(f"Invalid quantity for '{menu_item_obj.name}'.")
+            if quantity > menu_item_obj.stock_quantity:
+                raise serializers.ValidationError(
+                    f"Only {menu_item_obj.stock_quantity} unit(s) of '{menu_item_obj.name}' are available."
+                )
 
             price = Decimal(menu_item_obj.price)
 
@@ -91,9 +144,17 @@ class OrderSerializer(serializers.ModelSerializer):
             )
 
             total += price * quantity
+            menu_item_obj.stock_quantity -= quantity
+            if menu_item_obj.stock_quantity <= 0:
+                menu_item_obj.is_available = False
+            menu_item_obj.save(update_fields=["stock_quantity", "is_available", "updated_at"])
 
+        order.delivery_fee = self._delivery_fee_for_address(order.address)
+        order.ensure_delivery_estimate()
+        total += order.delivery_fee
         order.total_price = total
         order.save()
+        self._send_order_receipt(order)
         return order
 
     # UPDATE ORDER

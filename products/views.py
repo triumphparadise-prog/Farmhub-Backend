@@ -2,7 +2,6 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
-from rest_framework.permissions import IsAdminUser
 from accounts.permissions import IsEmailVerified
 from django.core.cache import cache
 import logging
@@ -22,6 +21,16 @@ class AdminThrottle(UserRateThrottle):
     rate = '50/hour'  # max 50 admin actions per hour
 
 
+class IsSellerOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (user.is_staff or getattr(user, "role", None) in {"admin", "farmer", "vendor"})
+        )
+
+
 class MenuItemViewSet(viewsets.ModelViewSet):
     """
     ADMIN-ONLY MENU ENDPOINTS
@@ -30,7 +39,7 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     """
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
-    permission_classes = [IsAdminUser, IsEmailVerified]  # Only admin can modify menu
+    permission_classes = [IsSellerOrAdmin, IsEmailVerified]
 
     # Clear cache on create
     def perform_create(self, serializer):
@@ -59,7 +68,7 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['patch'],
-        permission_classes=[permissions.IsAdminUser, IsEmailVerified],
+        permission_classes=[IsSellerOrAdmin, IsEmailVerified],
         throttle_classes=[AdminThrottle]
     )
     def update_status(self, request, pk=None):
@@ -103,13 +112,13 @@ class MenuViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.action in ["list", "retrieve"]:
-            return MenuItem.objects.filter(is_available=True).select_related("category")
+            return MenuItem.objects.filter(is_available=True, stock_quantity__gt=0).select_related("category")
         return MenuItem.objects.all()
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
             return [permissions.AllowAny()]
-        return [permissions.IsAdminUser(), IsEmailVerified()]
+        return [IsSellerOrAdmin(), IsEmailVerified()]
 
     def perform_create(self, serializer):
         item = serializer.save()
@@ -134,7 +143,7 @@ class MenuViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["patch"],
-        permission_classes=[permissions.IsAdminUser, IsEmailVerified],
+        permission_classes=[IsSellerOrAdmin, IsEmailVerified],
         throttle_classes=[AdminThrottle],
     )
     def update_status(self, request, pk=None):
@@ -148,14 +157,6 @@ class MenuViewSet(viewsets.ModelViewSet):
         admin_logger.info(
             f"Admin {request.user.username} updated availability of item {item.id} "
             f"from {old_status} to {new_status}"
-        )
-        log_event(
-            "admin_actions",
-            request,
-            "menu_status_update",
-            "success",
-            user=request.user,
-            extra={"item_id": item.id, "old_status": old_status, "new_status": new_status},
         )
         log_event(
             "admin_actions",

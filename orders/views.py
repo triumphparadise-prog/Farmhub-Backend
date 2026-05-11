@@ -25,7 +25,8 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        return request.user.is_staff or obj.user == request.user
+        role = getattr(request.user, "role", None)
+        return request.user.is_staff or role in {"admin", "farmer", "vendor", "logistics"} or obj.user == request.user
 
 # ----------------------------
 # Throttle for Admin
@@ -63,7 +64,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or getattr(user, "role", None) in {"admin", "farmer", "vendor", "logistics"}:
             return Order.objects.select_related("user").prefetch_related("items__menu_item").order_by('-created_at')
         return Order.objects.select_related("user").prefetch_related("items__menu_item").filter(user=user).order_by('-created_at')
 

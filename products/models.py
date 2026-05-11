@@ -16,6 +16,8 @@ class MenuItem(models.Model):
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=8, decimal_places=2)
     is_available = models.BooleanField(default=True, db_index=True)
+    stock_quantity = models.PositiveIntegerField(default=25)
+    low_stock_threshold = models.PositiveIntegerField(default=5)
     image = CloudinaryField('image', blank=True, null=True)  # <-- Updated field
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -25,3 +27,11 @@ class MenuItem(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def stock_status(self):
+        if self.stock_quantity <= 0 or not self.is_available:
+            return "out"
+        if self.stock_quantity <= self.low_stock_threshold:
+            return "low"
+        return "in_stock"
