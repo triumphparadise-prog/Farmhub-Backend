@@ -191,10 +191,15 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API for Dchoops",
     "VERSION": "1.0.0",
 }
-# Use Redis only in production
-REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
+# Use Redis only when a real cache URL is configured. Render services do not
+# have Redis on localhost, so falling back to locmem is safer than returning
+# 500s from throttles or public cache reads.
+REDIS_URL = env("REDIS_URL", default="").strip()
+USE_REDIS_CACHE = bool(REDIS_URL) and not REDIS_URL.startswith(
+    ("redis://127.0.0.1", "redis://localhost")
+)
 
-if DEBUG:
+if DEBUG or not USE_REDIS_CACHE:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
