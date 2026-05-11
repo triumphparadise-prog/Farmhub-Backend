@@ -23,6 +23,8 @@ class SafeImageField(serializers.ImageField):
 
 class MenuItemSerializer(serializers.ModelSerializer):
     image = SafeImageField(required=False, allow_null=True)
+    category_detail = CategorySerializer(source="category", read_only=True)
+    category_label = serializers.CharField(source="category.name", read_only=True)
 
     class Meta:
         model = MenuItem
