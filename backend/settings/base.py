@@ -177,14 +177,16 @@ SIMPLE_JWT = {
     "ACCESS_COOKIE_NAME": "access_token",
     "REFRESH_COOKIE_NAME": "refresh_token",
 }
-# base.py
-EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
 SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
 SENDGRID_SANDBOX_MODE_IN_DEBUG = env.bool("SENDGRID_SANDBOX_MODE_IN_DEBUG", default=True)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@dchops.com")
 
-if DEBUG and not SENDGRID_API_KEY:
+if SENDGRID_API_KEY:
+    EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
+elif DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Dchops API",

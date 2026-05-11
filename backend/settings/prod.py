@@ -65,20 +65,10 @@ if (
         "AUTH_COOKIE_SECURE must be True when AUTH_COOKIE_SAMESITE=None"
     )
 
-# =========================
-# EMAIL CONFIG (SAFE VERSION)
-# =========================
 SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
-
 if SENDGRID_API_KEY:
     EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
 else:
-    # fallback (no crash)
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False
-
-DEFAULT_FROM_EMAIL = env(
-    "DEFAULT_FROM_EMAIL",
-    default="noreply@dchops.com"
-)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@dchops.com")
