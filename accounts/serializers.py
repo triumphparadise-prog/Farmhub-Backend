@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 import bleach
 
 from .models import (
@@ -87,6 +88,10 @@ class RegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("email", "password", "password2", "full_name", "username", "role")
+        extra_kwargs = {
+            "email": {"validators": []},
+            "username": {"validators": []},
+        }
 
     def validate_email(self, value):
         """Validate and sanitize email."""
@@ -107,14 +112,28 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def validate_username(self, value):
-        """Validate and sanitize username."""
-        if not value:
+        """Sanitize username and allow friendly input like full names."""
+        value = bleach.clean(value or "", tags=[], strip=True).strip()
+        username = slugify(value).replace("-", "_")
+
+        if not username:
             raise serializers.ValidationError("Username is required.")
-        if " " in value:
-            raise serializers.ValidationError("Username cannot contain spaces.")
-        # Strip HTML tags from username
-        value = bleach.clean(value, tags=[], strip=True)
-        return value.strip()
+        if len(username) > 140:
+            username = username[:140].rstrip("_")
+
+        return username
+
+    def _unique_username(self, username):
+        base = username or "customer"
+        candidate = base
+        suffix = 2
+
+        while User.objects.filter(username=candidate).exists():
+            tail = f"_{suffix}"
+            candidate = f"{base[:150 - len(tail)]}{tail}"
+            suffix += 1
+
+        return candidate
 
     def validate(self, attrs):
         """Validate password confirmation."""
@@ -133,7 +152,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         
         # Sanitize email and username
         validated_data["email"] = validated_data.get("email", "").lower().strip()
-        validated_data["username"] = validated_data.get("username", "").strip()
+        validated_data["username"] = self._unique_username(validated_data.get("username", "").strip())
         
         user = User.objects.create_user(password=password, **validated_data)
         # Signal handlers will create EmailVerification and role-specific profile
